@@ -9,5 +9,5 @@ dependencies:
     - Cython
     - matplotlib
     - numpy
-   - pip:
-       - sunpy-sphinx-theme
+    - pip:
+        - sunpy-sphinx-theme

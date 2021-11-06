@@ -14,7 +14,6 @@ __all__ = ["GenericModel"]
 
 
 class BaseModel(ABC):
-
     @abstractmethod
     def _model(self):
         raise NotImplementedError
@@ -53,7 +52,7 @@ class GenericModel(BaseModel):
         Factory so we can register them.
         """
         super().__init_subclass__(**kwargs)
-        if hasattr(cls, 'defines_model_for'):
+        if hasattr(cls, "defines_model_for"):
             cls._registry[cls] = cls.defines_model_for
 
     @u.quantity_input
@@ -73,16 +72,20 @@ class GenericModel(BaseModel):
         delta_log_temperature = np.diff(np.log10(temperature_bin_edges.to(u.K).value))
         # NOTE: Very small numerical differences not important
         # NOTE: Can be removed if we use gWCS to create the resulting DEM cube
-        if not np.allclose(delta_log_temperature, delta_log_temperature[0], atol=1e-10, rtol=0):
-            raise ValueError('Temperature must be evenly spaced in log10')
+        if not np.allclose(
+            delta_log_temperature, delta_log_temperature[0], atol=1e-10, rtol=0
+        ):
+            raise ValueError("Temperature must be evenly spaced in log10")
         self._temperature_bin_edges = temperature_bin_edges
 
     @property
     @u.quantity_input
     def temperature_bin_centers(self) -> u.K:
         log_temperature = np.log10(self.temperature_bin_edges.value)
-        log_temperature_centers = (log_temperature[1:] + log_temperature[:-1])/2.
-        return u.Quantity(10.**log_temperature_centers, self.temperature_bin_edges.unit)
+        log_temperature_centers = (log_temperature[1:] + log_temperature[:-1]) / 2.0
+        return u.Quantity(
+            10.0 ** log_temperature_centers, self.temperature_bin_edges.unit
+        )
 
     @property
     def data(self) -> ndcube.NDCubeSequence:
@@ -95,13 +98,13 @@ class GenericModel(BaseModel):
         `ndcube.NDCubeSequence`
         """
         if not isinstance(data, ndcube.NDCubeSequence):
-            raise ValueError('Input data must be an NDCubeSequence')
-        if not all([hasattr(c, 'unit') for c in data]):
-            raise u.UnitsError('Each NDCube in NDCubeSequence must have units')
+            raise ValueError("Input data must be an NDCubeSequence")
+        if not all([hasattr(c, "unit") for c in data]):
+            raise u.UnitsError("Each NDCube in NDCubeSequence must have units")
         # TODO: check that all WCS are the same, within some tolerance
         # NOTE: not always wavelength? Could be energy, filter wheel, etc.
-        if data.cube_like_array_axis_physical_types[0] != ('em.wl',):
-            raise ValueError('First axis of sequence must be wavelength.')
+        if data.cube_like_array_axis_physical_types[0] != ("em.wl",):
+            raise ValueError("First axis of sequence must be wavelength.")
         self._data = data
 
     @property
@@ -111,23 +114,35 @@ class GenericModel(BaseModel):
     @kernel.setter
     def kernel(self, kernel):
         if len(kernel) != self.data.cube_like_dimensions[0].value:
-            raise ValueError('Number of kernels must be equal to length of wavelength dimension.')
-        if not all([k.shape == self.temperature_bin_centers.shape for k in kernel]):
-            raise ValueError('Temperature and kernels must have the same shape.')
+            raise ValueError(
+                "Number of kernels must be equal to length of wavelength dimension."
+            )
+        if not all(
+            [kernel[k].shape == self.temperature_bin_centers.shape for k in kernel]
+        ):
+            raise ValueError("Temperature and kernels must have the same shape.")
         self._kernel = kernel
 
     @property
     def wavelength(self):
         # TODO: handle non-numeric "wavelength" designations
-        return u.Quantity(self.data.common_axis_coords[0], self.data[0].wcs.wcs.cunit[-1])
+        return u.Quantity(
+            self.data.common_axis_coords[0], self.data[0].wcs.wcs.cunit[-1]
+        )
 
     @property
     def data_matrix(self):
-        return u.Quantity(np.stack([n.data.squeeze() for n in self.data]), self.data[0].unit)
+        return u.Quantity(
+            np.stack([n.data.squeeze() for n in self.data]), self.data[0].unit
+        )
 
     @property
     def kernel_matrix(self):
-        return u.Quantity(np.stack([k.value for k in self.kernel]), self.kernel[0].unit)
+        first_key = list(self.kernel)[0]
+        return u.Quantity(
+            np.stack([self.kernel[k].value for k in self.kernel]),
+            self.kernel[first_key].unit,
+        )
 
     def fit(self, *args, **kwargs):
         """
@@ -143,28 +158,34 @@ class GenericModel(BaseModel):
         dem_dict = self._model(*args, **kwargs)
         wcs = self._make_dem_wcs()
         meta = self._make_dem_meta()
-        dem = ndcube.NDCube(dem_dict.pop('dem'),
-                            wcs,
-                            meta=meta,
-                            uncertainty=StdDevUncertainty(dem_dict.pop('uncertainty')))
-        cubes = [('dem', dem),]
+        dem = ndcube.NDCube(
+            dem_dict.pop("dem"),
+            wcs,
+            meta=meta,
+            uncertainty=StdDevUncertainty(dem_dict.pop("uncertainty")),
+        )
+        cubes = [
+            ("dem", dem),
+        ]
         for k in dem_dict:
             cubes += [(k, ndcube.NDCube(dem_dict[k], wcs, meta=meta))]
-        return ndcube.NDCollection(cubes, )
+        return ndcube.NDCollection(cubes,)
 
     def _make_dem_wcs(self):
         # NOTE: Assumes that WCS for all cubes is the same
         wcs = self.data[0].wcs.to_header()
         n_axes = self.data[0].wcs.naxis
-        wcs[f'CTYPE{n_axes}'] = 'LOG_TEMPERATURE'
-        wcs[f'CUNIT{n_axes}'] = 'K'
-        wcs[f'CDELT{n_axes}'] = np.diff(np.log10(self.temperature_bin_centers.to(u.K).value))[0]
-        wcs[f'CRPIX{n_axes}'] = 1
-        wcs[f'CRVAL{n_axes}'] = np.log10(self.temperature_bin_centers.to(u.K).value)[0]
-        wcs[f'NAXIS{n_axes}'] = self.temperature_bin_centers.shape[0]
-        for i in range(n_axes-1):
+        wcs[f"CTYPE{n_axes}"] = "LOG_TEMPERATURE"
+        wcs[f"CUNIT{n_axes}"] = "K"
+        wcs[f"CDELT{n_axes}"] = np.diff(
+            np.log10(self.temperature_bin_centers.to(u.K).value)
+        )[0]
+        wcs[f"CRPIX{n_axes}"] = 1
+        wcs[f"CRVAL{n_axes}"] = np.log10(self.temperature_bin_centers.to(u.K).value)[0]
+        wcs[f"NAXIS{n_axes}"] = self.temperature_bin_centers.shape[0]
+        for i in range(n_axes - 1):
             # FIXME: better way to get this info than internal var?
-            wcs[f'NAXIS{i+1}'] = self.data[0].wcs._naxis[i]
+            wcs[f"NAXIS{i+1}"] = self.data[0].wcs._naxis[i]
 
         return astropy.wcs.WCS(wcs)
 

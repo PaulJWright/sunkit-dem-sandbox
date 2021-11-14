@@ -8,8 +8,6 @@ import astropy.units as u
 from scipy.interpolate import splrep, splev
 from sunkit_dem import GenericModel
 
-# from synthesizAR.instruments.sdo import _TEMPERATURE_RESPONSE
-
 # Clone this repo and replace path below: https://github.com/ianan/demreg
 sys.path.append("/Users/pwright/Documents/personal/sunkit-dem/demreg/python/")
 from dn2dem_pos import dn2dem_pos
@@ -44,16 +42,17 @@ class HK12Model(GenericModel):
         )
         dem = dem.T * dem_unit
         uncertainty = edem.T * dem_unit
-        em = dem * np.diff(self.temperature_bin_edges)
         T_error_upper = self.temperature_bin_centers * (10 ** elogt - 1)
         T_error_lower = self.temperature_bin_centers * (1 - 1 / 10 ** elogt)
+        dn = dn_reg * self.data_matrix.unit
         return {
             "dem": dem,
             "uncertainty": uncertainty,
-            "em": em,
+            # "em": em,
             "temperature_errors_upper": T_error_upper,
             "temperature_errors_lower": T_error_lower,
             "chi_squared": np.atleast_1d(chisq),
+            "dn_reg": dn,
         }
 
     @classmethod

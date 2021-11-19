@@ -44,15 +44,15 @@ class HK12Model(GenericModel):
         uncertainty = edem.T * dem_unit
         T_error_upper = self.temperature_bin_centers * (10 ** elogt - 1)
         T_error_lower = self.temperature_bin_centers * (1 - 1 / 10 ** elogt)
-        dn = dn_reg * self.data_matrix.unit
+        # dn = dn_reg * self.data_matrix.unit
         return {
             "dem": dem,
             "uncertainty": uncertainty,
             # "em": em,
-            "temperature_errors_upper": T_error_upper,
-            "temperature_errors_lower": T_error_lower,
-            "chi_squared": np.atleast_1d(chisq),
-            "dn_reg": dn,
+            "temperature_errors_upper": T_error_upper.T,
+            "temperature_errors_lower": T_error_lower.T,
+            "chi_squared": np.atleast_1d(chisq[np.newaxis, :, :]),
+            # "dn_reg": dn,
         }
 
     @classmethod

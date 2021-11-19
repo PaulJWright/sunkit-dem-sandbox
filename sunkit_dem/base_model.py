@@ -169,12 +169,23 @@ class GenericModel(BaseModel):
         ]
         for k in dem_dict:
             cubes += [(k, ndcube.NDCube(dem_dict[k], wcs, meta=meta))]
-        return ndcube.NDCollection(cubes,)
+        return ndcube.NDCollection(cubes, aligned_axes=(1, 2))
 
     def _make_dem_wcs(self):
         # NOTE: Assumes that WCS for all cubes is the same
-        wcs = self.data[0].wcs.to_header()
-        n_axes = self.data[0].wcs.naxis
+
+        try:
+            wcs = self.data[0].wcs.to_header()
+            n_axes = self.data[0].wcs.naxis
+            for i in range(n_axes - 1):
+                # FIXME: better way to get this info than internal var?
+                wcs[f"NAXIS{i+1}"] = self.data[0].wcs._naxis[i]
+        except:
+            # NOTE: Assumes data long one axis
+            wcs = {}
+            n_axes = 1
+
+        # n_axes = self.data[0].wcs.naxis
         wcs[f"CTYPE{n_axes}"] = "LOG_TEMPERATURE"
         wcs[f"CUNIT{n_axes}"] = "K"
         wcs[f"CDELT{n_axes}"] = np.diff(
@@ -183,9 +194,6 @@ class GenericModel(BaseModel):
         wcs[f"CRPIX{n_axes}"] = 1
         wcs[f"CRVAL{n_axes}"] = np.log10(self.temperature_bin_centers.to(u.K).value)[0]
         wcs[f"NAXIS{n_axes}"] = self.temperature_bin_centers.shape[0]
-        for i in range(n_axes - 1):
-            # FIXME: better way to get this info than internal var?
-            wcs[f"NAXIS{i+1}"] = self.data[0].wcs._naxis[i]
 
         return astropy.wcs.WCS(wcs)
 
